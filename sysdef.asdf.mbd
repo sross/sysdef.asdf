@@ -1,0 +1,15 @@
+(in-package :sysdef-user)
+
+
+(defparameter *sysdef.asdf*
+  (define-system :sysdef.asdf ()
+    (:version 0 1)
+    (:components "asdf-support")
+    (:config-file #.(merge-pathnames ".asdfrc" (user-homedir-pathname)))
+    (:needs :alexandria)))
+
+(defmethod load-config :around ((sys (eql *sysdef.asdf*)))
+  (funcall (find-symbol "ENABLE-ASDF-SUPPORT" :sysdef.asdf))
+  (call-next-method)
+  (funcall (find-symbol "REGISTER-ASDF-SYSTEMS" :sysdef.asdf)))
+
