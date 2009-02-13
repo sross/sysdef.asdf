@@ -3,15 +3,8 @@
 ;; It is NOT to provide full asdf support.
 ;; It is only to provide idiomatic asdf support.
 
-;; We will provide the following symbols exported from asdf
-;;
-;; defsystem
-;; defsystem-connection  (hardly idiomatic i know, but we can provide it at, almost, no cost)
-;; cl-source-file
-;; static-file
-;; find-system
 
-;; This means that specializing any perform methods on your system will not have the effect you desire.
+;; This means that specializing any methods, other than perform, on your system will not have the effect you desire.
 ;; we will interrogate .asd files for systems (and only once at startup as this is for support only).
 ;; we will provide messages (and in a (asdf-failures) function) about what asdf systems where not defined.
 
@@ -22,10 +15,17 @@
 (defpackage :sysdef.asdf (:use :cl :sysdef :alexandria)
   (:export #:defsystem #:defsystem-connection #:cl-source-file #:static-file #:find-system
    #:enable-asdf-support #:disable-asdf-support #:register-asdf-systems #:*signal-error* #:*central-registry*
-
+   #:operate #:perform #:oos #:operate-on-system #:system #:module #:component
+   
    ;;class aliases
    #:operation #:load-op #:load-source-op #:compile-op #:test-op
    )
+  (:import-from #+lispworks :clos #+sbcl :sb-mop #+clisp :clos #+cmu :pcl #+allegro :mop #+(or ccl openmcl) :ccl
+
+   #:generic-function-method-class #:funcallable-standard-class
+   #:method-qualifiers #:method-specializers #:generic-function-lambda-list #:method-function)
+   
+  (:shadow #:perform)
   (:documentation "The sysdef.asdf package offers a tiny piece of ASDF compatibility in order to load
 systems defined using ASDF syntax. No attempt has been made to fully support specialization on ASDF methods
 and these sorts of custom systems will not work in this support package.
@@ -75,8 +75,8 @@ The goal here is to support the most basic of ASDF system definitions."))
 
 (defun enabledp ()
   (and (find-package :asdf)
-       (not (eql (find-package :asdf)
-                 (find-package :sysdef.asdf)))))
+       (eql (find-package :asdf)
+            (find-package :sysdef.asdf))))
 
 (defun enable-asdf-support ()
   "Enables ASDF support for mudballs. This adds the package nickname :ASDF to the sysdef.asdf package. If
@@ -255,5 +255,56 @@ reload these files if they are changed, you will have to call register-asdf-syst
             (let ((*default-development-mode* t))
               (load truename))))))))
 
-;; EOF
 
+
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defclass wrap-execute-gf (standard-generic-function)
+    ()
+    (:metaclass funcallable-standard-class))
+
+  (defgeneric perform (operation system)
+    (:generic-function-class wrap-execute-gf)
+    (:documentation "The perform method is the ASDF equivalent to execute. Defining a method on perform will
+add an appropriate method to execute.")))
+  
+
+;; we can't use (eql (ensure-generic-function-perform)) as it breaks under ACL.
+(defmethod add-method ((perform-gf wrap-execute-gf) (method method))
+  (let ((gf (ensure-generic-function 'execute)))
+    (add-method gf (make-instance (generic-function-method-class gf)
+                                  :qualifiers (method-qualifiers method)
+                                  :specializers (rotate (subseq (method-specializers method)
+                                                                0 2))
+                                  :lambda-list (generic-function-lambda-list gf)
+                                  :function (create-argument-rotater method)))))
+
+(defun create-argument-rotater (method)
+  (compile nil
+           `(lambda  (x #+cmucl &optional y)
+              #+(or lispworks allegro ccl openmcl)
+              (funcall ,(method-function method) y x)
+              #+(or sbcl clisp cmucl)
+              (funcall ,(method-function method) (reverse x) y))))
+
+
+
+(defun operate-on-system (class-name system &rest args &key &allow-other-keys)
+  (apply 'sysdef:perform system class-name args))
+
+(defun oos (class-name system &rest args &key &allow-other-keys)
+  (apply 'operate-on-system class-name system args))
+
+
+;; EOF
+#|
+(in-package :asdf)
+
+(defclass doc-op (operation) ())
+
+(defmethod perform :before ((op doc-op) (system (eql (find-system :cl-store))))
+  (format t "Document cl-store~%"))
+
+(oos 'doc-op :cl-store)
+
+|#

@@ -3,10 +3,11 @@
 
 (defparameter *sysdef.asdf*
   (define-system :sysdef.asdf ()
-    (:version 0 1)
+    (:version 0 2)
     (:components "asdf-support")
+    (:supports (:implementation :lispworks :sbcl :cmucl :clisp :openmcl :scl :allegrocl))
     (:config-file #.(merge-pathnames ".asdfrc" (user-homedir-pathname)))
-    (:needs :alexandria)))
+    (:needs :alexandria :asdf)))
 
 (defmethod load-config :around ((sys (eql *sysdef.asdf*)))
   (funcall (find-symbol "ENABLE-ASDF-SUPPORT" :sysdef.asdf))
