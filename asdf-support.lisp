@@ -269,23 +269,22 @@ reload these files if they are changed, you will have to call register-asdf-syst
 add an appropriate method to execute.")))
   
 
-;; we can't use (eql (ensure-generic-function-perform)) as it breaks under ACL.
+;; we can't use (eql (ensure-generic-function 'perform)) as it breaks under ACL.
 (defmethod add-method ((perform-gf wrap-execute-gf) (method method))
   (let ((gf (ensure-generic-function 'execute)))
     (add-method gf (make-instance (generic-function-method-class gf)
                                   :qualifiers (method-qualifiers method)
-                                  :specializers (rotate (subseq (method-specializers method)
-                                                                0 2))
+                                  :specializers (reverse (method-specializers method))
                                   :lambda-list (generic-function-lambda-list gf)
                                   :function (create-argument-rotater method)))))
 
 (defun create-argument-rotater (method)
-  (compile nil
-           `(lambda  (x #+cmucl &optional y)
-              #+(or lispworks allegro ccl openmcl)
-              (funcall ,(method-function method) y x)
-              #+(or sbcl clisp cmucl)
-              (funcall ,(method-function method) (reverse x) y))))
+  (let ((method-function (method-function method)))
+    #'(lambda  (x #+cmucl &optional y)
+        #+(or lispworks allegro ccl openmcl)
+        (funcall method-function y x)
+        #+(or sbcl clisp cmucl)
+        (funcall method-function (reverse x) y))))
 
 
 
