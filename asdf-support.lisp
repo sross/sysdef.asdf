@@ -29,7 +29,11 @@
   (:documentation "The sysdef.asdf package offers a tiny piece of ASDF compatibility in order to load
 systems defined using ASDF syntax. No attempt has been made to fully support specialization on ASDF methods
 and these sorts of custom systems will not work in this support package.
-The goal here is to support the most basic of ASDF system definitions."))
+The goal here is to support the most basic of ASDF system definitions.
+   
+It is worth noting that specialization of perform methods IS supported however calling call-next-method
+in these specialized methods is undefined."))
+
 
 (in-package :sysdef.asdf)
 
@@ -296,14 +300,3 @@ add an appropriate method to execute.")))
 
 
 ;; EOF
-#|
-(in-package :asdf)
-
-(defclass doc-op (operation) ())
-
-(defmethod perform :before ((op doc-op) (system (eql (find-system :cl-store))))
-  (format t "Document cl-store~%"))
-
-(oos 'doc-op :cl-store)
-
-|#
